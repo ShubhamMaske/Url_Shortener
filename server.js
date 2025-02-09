@@ -8,6 +8,8 @@ const urlRoutes = require('./routes/urlRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const rateLimiter = require('./middleware/rateLimiter');
 const redisClient = require('./config/redisClient');
+const passport = require('passport')
+require('./config/passport');
 
 // Initialize app
 const app = express();
@@ -18,6 +20,7 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(rateLimiter);
+app.use(passport.initialize())
 
 
 // Database connection
