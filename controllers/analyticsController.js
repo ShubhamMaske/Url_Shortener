@@ -1,4 +1,4 @@
-const Url = require('../models/Url');
+const Url = require('../models/url');
 const isEmpty = require('../utils/isEmpty')
 
 
@@ -86,7 +86,48 @@ exports.getAnalytics = async (req, res, next) => {
 // Get URLs analytics for particular topic
 exports.getTopicsAnalytics = async (req, res, next) => {
   try {
-    
+    const topic = req.params.topic;
+    const userId = req.user.id;
+
+    if(isEmpty(topic)) {
+      return res.status(403).json({ message: 'Input params should not be empty' });
+    }
+
+    const urls = await Url.find({ topic, userId });
+
+    if (!urls.length) {
+        return res.status(404).json({ message: "No URLs found for this topic." });
+    }
+
+    let totalClicks = 0;
+    let uniqueUsersSet = new Set();
+    let clicksByDate = {};
+
+    const urlsData = urls.map((url) => {
+      totalClicks += url.analytics.length;
+      url.analytics.forEach((entry) => uniqueUsersSet.add(entry.ip));
+
+      url.analytics.forEach((entry) => {
+        const date = entry.timestamp.toISOString().split('T')[0];
+        clicksByDate[date] = (clicksByDate[date] || 0) + 1;
+      });
+
+      return {
+        shortUrl: `/api/shorten/${url.alias}`,
+        totalClicks: url.analytics.length,
+        uniqueUsers: new Set(url.analytics.map((entry) => entry.ip)).size,
+      };
+    });
+
+    const clicksByDateArray = Object.entries(clicksByDate)
+      .map(([date, count]) => ({ date, count }));
+
+    res.json({
+      totalClicks,
+      uniqueUsers: uniqueUsersSet.size,
+      clicksByDate: clicksByDateArray,
+      urls: urlsData,
+    });
   } catch (error) {
     console.log("getTopicsAnalytics error - ",error)
     res.status(500).json({ message: 'Error in getTopicsAnalytics' });
