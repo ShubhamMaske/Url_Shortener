@@ -138,7 +138,71 @@ exports.getTopicsAnalytics = async (req, res, next) => {
 // Get all URLs analytics
 exports.allURLAnalytics = async (req, res, next) => {
   try {
-    
+    const userId = req.user.id;
+
+    const urls = await Url.find({ userId });
+
+    let totalUrls = urls.length;
+    let totalClicks = 0;
+    let uniqueUsersSet = new Set();
+    let clicksByDate = {};
+    let osType = {};
+    let deviceType = {};
+
+    urls.forEach((url) => {
+        totalClicks += url.analytics.length;
+
+        url.analytics.forEach((entry) => {
+        uniqueUsersSet.add(entry.ip);
+
+        // Group clicks by date
+        const date = entry.timestamp.toISOString().split('T')[0];
+        clicksByDate[date] = (clicksByDate[date] || 0) + 1;
+
+        // Group by OS type
+        const osName = entry.os || 'Unknown';
+        if (!osType[osName]) {
+            osType[osName] = { uniqueClicks: 0, uniqueUsers: new Set() };
+        }
+        osType[osName].uniqueClicks += 1;
+        osType[osName].uniqueUsers.add(entry.ip);
+
+        // Group by device type
+        const deviceName = entry.device || 'Unknown';
+        if (!deviceType[deviceName]) {
+            deviceType[deviceName] = { uniqueClicks: 0, uniqueUsers: new Set() };
+        }
+        deviceType[deviceName].uniqueClicks += 1;
+        deviceType[deviceName].uniqueUsers.add(entry.ip);
+        });
+    });
+
+    // Converting osType and deviceType sets into arrays with unique user counts
+    const osTypeArray = Object.entries(osType).map(([osName, data]) => ({
+        osName,
+        uniqueClicks: data.uniqueClicks,
+        uniqueUsers: data.uniqueUsers.size,
+    }));
+
+    const deviceTypeArray = Object.entries(deviceType).map(([deviceName, data]) => ({
+        deviceName,
+        uniqueClicks: data.uniqueClicks,
+        uniqueUsers: data.uniqueUsers.size,
+    }));
+
+    const clicksByDateArray = Object.entries(clicksByDate).map(([date, count]) => ({
+        date,
+        count,
+    }));
+
+    res.json({
+        totalUrls,
+        totalClicks,
+        uniqueUsers: uniqueUsersSet.size,
+        clicksByDate: clicksByDateArray,
+        osType: osTypeArray,
+        deviceType: deviceTypeArray,
+    });
   } catch (error) {
     console.log("allURLAnalytics error - ",error)
     res.status(500).json({ message: 'Server Error' });
